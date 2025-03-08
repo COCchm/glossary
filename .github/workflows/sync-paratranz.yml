@@ -1,0 +1,50 @@
+name: ParaToGit
+
+on:
+  schedule:
+    - cron: '0 16 * * *' # 每天UTC时间16点运行
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+          
+      - name: Run sync script
+        id: check_error
+        env:
+          PARATRANZ_API_KEY: ${{ secrets.PARATRANZ_API_KEY }}
+          PARATRANZ_PROJECT_ID: 13798
+        run: |
+          python .github/scripts/sync_terms.py
+          if ($LASTEXITCODE -ne 0) {
+            echo "has_error=true" >> $env:GITHUB_OUTPUT
+            echo "error=Sync failed with exit code $LASTEXITCODE" >> $env:GITHUB_OUTPUT
+            exit 1
+          }
+          
+      - name: Upload Error.txt to artifact
+        if: steps.check_error.outputs.has_error == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: error-log
+          path: ./Error.txt
+          
+      - name: Cancel workflow if error
+        if: steps.check_error.outputs.has_error == 'true'
+        run: |
+          echo "Error detected, cancelling workflow"
+          echo ${{ steps.check_error.outputs.error }}
+          exit 1

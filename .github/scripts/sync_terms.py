@@ -33,19 +33,23 @@ def get_remote_terms():
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         
-        # 验证响应数据结构
-        terms = response.json()
-        if not isinstance(terms, list):
-            raise ValueError("远程术语表格式错误：期望列表类型")
+        # 解析响应数据
+        data = response.json()
+        if not isinstance(data, dict):
+            raise ValueError("远程术语表格式错误：期望字典类型")
+            
+        # 验证分页数据结构
+        if 'results' not in data or not isinstance(data['results'], list):
+            raise ValueError("远程术语表格式错误：缺少results字段或格式不正确")
             
         # 验证每个术语项格式
-        for term in terms:
+        for term in data['results']:
             if not isinstance(term, dict):
                 raise ValueError("术语项格式错误：期望字典类型")
-            if 'term_id' not in term:
-                raise ValueError("术语项缺少term_id字段")
+            if 'id' not in term:  # 根据API文档，术语ID字段是'id'而不是'term_id'
+                raise ValueError("术语项缺少id字段")
                 
-        return terms
+        return data['results']
         
     except requests.exceptions.RequestException as e:
         raise Exception(f"API请求失败: {str(e)}")
@@ -78,12 +82,20 @@ def update_remote_terms(terms):
 
 def merge_terms(local_terms, remote_terms):
     """合并本地和远程术语表"""
-    # 将列表转换为字典，以term_id为key
-    local_dict = {term['term_id']: term for term in local_terms}
-    remote_dict = {term['term_id']: term for term in remote_terms}
+    # 将列表转换为字典，统一使用id作为key
+    local_dict = {term.get('id', term.get('term_id')): term for term in local_terms}
+    remote_dict = {term['id']: term for term in remote_terms}
     
     # 合并逻辑：远程优先
     merged_dict = {**local_dict, **remote_dict}
+    
+    # 确保所有术语都有id字段
+    for term in merged_dict.values():
+        if 'id' not in term:
+            term['id'] = term.get('term_id')
+            if 'term_id' in term:
+                del term['term_id']
+                
     return list(merged_dict.values())
 
 def sync_terms():

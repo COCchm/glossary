@@ -90,22 +90,48 @@ def get_remote_terms():
 
 def update_remote_terms(terms):
     """更新远程术语表"""
+    if not API_KEY:
+        raise ValueError("缺少API_KEY环境变量")
+    if not PROJECT_ID:
+        raise ValueError("缺少PROJECT_ID环境变量")
+        
     url = f"{PARATRANZ_API}/projects/{PROJECT_ID}/terms"
-    headers = {"Authorization": API_KEY}
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+    }
     try:
         # 验证输入数据格式
         if not isinstance(terms, list):
             raise ValueError("术语表格式错误：期望列表类型")
             
-        response = requests.post(url, json=terms, headers=headers)
-        response.raise_for_status()
+        # 分页更新，每页100条
+        page_size = 100
+        total_pages = (len(terms) + page_size - 1) // page_size
         
-        # 验证响应数据
-        result = response.json()
-        if not isinstance(result, dict) or 'message' not in result:
-            raise ValueError("API响应格式错误")
+        for page in range(total_pages):
+            start = page * page_size
+            end = start + page_size
+            page_terms = terms[start:end]
             
-        return result
+            print(f"正在更新第 {page + 1}/{total_pages} 页，共 {len(page_terms)} 条术语")
+            
+            response = requests.post(url, json=page_terms, headers=headers)
+            response.raise_for_status()
+            
+            # 验证响应数据
+            result = response.json()
+            if not isinstance(result, dict) or 'message' not in result:
+                raise ValueError("API响应格式错误")
+                
+            print(f"第 {page + 1} 页更新成功")
+            
+            # 添加延迟避免触发频率限制
+            if page < total_pages - 1:
+                time.sleep(1)
+                
+        return {"message": "所有术语更新成功"}
         
     except requests.exceptions.RequestException as e:
         raise Exception(f"API请求失败: {str(e)}")

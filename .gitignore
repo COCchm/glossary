@@ -1,0 +1,28 @@
+# Ignore IDE specific files
+.vscode/
+.idea/
+
+# Ignore Python cache and virtualenv
+__pycache__/
+*.py[cod]
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Ignore node modules
+node_modules/
+
+# Ignore log files
+*.log
+logs/
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Allow terms file
+!terms-13798.json

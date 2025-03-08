@@ -42,6 +42,16 @@ def update_remote_terms(terms):
     if response.status_code != 200:
         raise Exception(f"更新远程术语表失败: {response.status_code}")
 
+def merge_terms(local_terms, remote_terms):
+    """合并本地和远程术语表"""
+    # 将列表转换为字典，以term_id为key
+    local_dict = {term['term_id']: term for term in local_terms}
+    remote_dict = {term['term_id']: term for term in remote_terms}
+    
+    # 合并逻辑：远程优先
+    merged_dict = {**local_dict, **remote_dict}
+    return list(merged_dict.values())
+
 def sync_terms():
     """同步术语表"""
     # 加载本地和远程术语表
@@ -49,7 +59,7 @@ def sync_terms():
     remote_terms = get_remote_terms()
     
     # 合并逻辑
-    merged_terms = {**remote_terms, **local_terms}
+    merged_terms = merge_terms(local_terms, remote_terms)
     
     # 更新两端
     save_local_terms(merged_terms)
@@ -57,6 +67,11 @@ def sync_terms():
 
 if __name__ == "__main__":
     try:
+        # 设置标准输出编码为UTF-8
+        import sys
+        import io
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+        
         sync_terms()
         print("术语表同步成功")
     except Exception as e:

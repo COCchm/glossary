@@ -54,26 +54,30 @@ def merge_terms(local_terms, remote_terms):
 
 def sync_terms():
     """同步术语表"""
-    # 加载本地和远程术语表
-    local_terms = load_local_terms()
-    remote_terms = get_remote_terms()
-    
-    # 合并逻辑
-    merged_terms = merge_terms(local_terms, remote_terms)
-    
-    # 更新两端
-    save_local_terms(merged_terms)
-    update_remote_terms(merged_terms)
+    try:
+        # 加载本地和远程术语表
+        local_terms = load_local_terms()
+        remote_terms = get_remote_terms()
+        
+        # 合并逻辑
+        merged_terms = merge_terms(local_terms, remote_terms)
+        
+        # 更新两端
+        save_local_terms(merged_terms)
+        update_remote_terms(merged_terms)
+        return True
+    except Exception as e:
+        print(f"同步过程中发生错误: {str(e)}", file=sys.stderr)
+        return False
 
 if __name__ == "__main__":
-    try:
-        # 设置标准输出编码为UTF-8
-        import sys
-        import io
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-        
-        sync_terms()
-        print("术语表同步成功")
-    except Exception as e:
-        print(f"术语表同步失败: {str(e)}")
+    # 设置系统默认编码为UTF-8
+    import sys
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    
+    if not sync_terms():
+        print("术语表同步失败", file=sys.stderr)
         exit(1)
+    print("术语表同步成功")

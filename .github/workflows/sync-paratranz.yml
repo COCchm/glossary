@@ -1,49 +1,48 @@
 name: ParaToGit
 
 on:
-  schedule:
-    - cron: '0 16 * * *' # 每天UTC时间16点运行
   workflow_dispatch:
+  schedule:
+    - cron: '0 16 * * *'  # 每天UTC时间16点运行
 
 jobs:
   sync:
     runs-on: windows-latest
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
-      - name: Set up Python
-        uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
-          
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests
-          
+          pip install -r .github/requirements.txt
+
       - name: Run sync script
         id: sync_terms
         env:
           PARATRANZ_API_KEY: ${{ secrets.PARATRANZ_API_KEY }}
-          PARATRANZ_PROJECT_ID: 13798
         run: |
           python .github/scripts/sync_terms.py
-          if ($LASTEXITCODE -ne 0) {
-            echo "has_error=true" >> $env:GITHUB_OUTPUT
-            echo "error=Sync failed with exit code $LASTEXITCODE" >> $env:GITHUB_OUTPUT
-            exit 1
-          }
-          
+          echo "run_time=$(date)" >> $GITHUB_OUTPUT
+          echo "has_error=$(if [ $? -ne 0 ]; then echo 'true'; else echo 'false'; fi)" >> $GITHUB_OUTPUT
+
       - name: Commit changes
-        if: steps.sync_terms.outputs.has_error != 'true'
+        if: steps.sync_terms.outputs.has_error == 'false'
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add terms-13798.json
-          git commit -m "chore: sync terms from ParaTranz [skip ci]"
+          git commit -m "Update terms from ParaTranz [skip ci]"
           git push
-          
+
       - name: Upload error logs
         if: steps.sync_terms.outputs.has_error == 'true'
         uses: actions/upload-artifact@v4
@@ -52,15 +51,3 @@ jobs:
           path: |
             .github/logs/*.log
             terms-13798.json
-            
-      - name: Send notification
-        uses: actions-ecosystem/action-slack-notify@v2
-        if: always()
-        with:
-          status: ${{ steps.sync_terms.outputs.has_error == 'true' && 'failure' || 'success' }}
-          text: |
-            ${{ steps.sync_terms.outputs.has_error == 'true' && '术语表同步失败' || '术语表同步成功' }}
-            项目ID: 13798
-            时间: ${{ steps.sync_terms.outputs.run_time }}
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

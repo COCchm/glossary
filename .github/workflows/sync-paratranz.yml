@@ -30,6 +30,7 @@ jobs:
         shell: pwsh
         env:
           PARATRANZ_API_KEY: ${{ secrets.PARATRANZ_API_KEY }}
+          PROJECT_ID: 13798
         run: |
           python .github/scripts/sync_terms.py
           $run_time = Get-Date -Format "yyyy-MM-dd HH:mm:ss"

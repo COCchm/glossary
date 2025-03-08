@@ -27,12 +27,15 @@ jobs:
 
       - name: Run sync script
         id: sync_terms
+        shell: pwsh
         env:
           PARATRANZ_API_KEY: ${{ secrets.PARATRANZ_API_KEY }}
         run: |
           python .github/scripts/sync_terms.py
-          echo "run_time=$(date)" >> $GITHUB_OUTPUT
-          echo "has_error=$(if [ $? -ne 0 ]; then echo 'true'; else echo 'false'; fi)" >> $GITHUB_OUTPUT
+          $run_time = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+          $has_error = if ($LASTEXITCODE -ne 0) { "true" } else { "false" }
+          echo "run_time=$run_time" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          echo "has_error=$has_error" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Commit changes
         if: steps.sync_terms.outputs.has_error == 'false'

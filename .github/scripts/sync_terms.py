@@ -9,7 +9,7 @@ PROJECT_ID = os.getenv("PARATRANZ_PROJECT_ID")
 API_KEY = os.getenv("PARATRANZ_API_KEY")
 
 # GitHub术语表路径
-TERMS_DIR = Path("D:/COC不全书/glossary")
+TERMS_DIR = Path(__file__).parent.parent.parent  # 指向项目根目录
 TERMS_FILE = TERMS_DIR / "terms-13798.json"
 
 def load_local_terms():

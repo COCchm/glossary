@@ -29,18 +29,52 @@ def get_remote_terms():
     """获取远程术语表"""
     url = f"{PARATRANZ_API}/projects/{PROJECT_ID}/terms"
     headers = {"Authorization": API_KEY}
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        raise Exception(f"获取远程术语表失败: {response.status_code}")
-    return response.json()
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        
+        # 验证响应数据结构
+        terms = response.json()
+        if not isinstance(terms, list):
+            raise ValueError("远程术语表格式错误：期望列表类型")
+            
+        # 验证每个术语项格式
+        for term in terms:
+            if not isinstance(term, dict):
+                raise ValueError("术语项格式错误：期望字典类型")
+            if 'term_id' not in term:
+                raise ValueError("术语项缺少term_id字段")
+                
+        return terms
+        
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"API请求失败: {str(e)}")
+    except ValueError as e:
+        raise Exception(f"数据格式错误: {str(e)}")
 
 def update_remote_terms(terms):
     """更新远程术语表"""
     url = f"{PARATRANZ_API}/projects/{PROJECT_ID}/terms"
     headers = {"Authorization": API_KEY}
-    response = requests.post(url, json=terms, headers=headers)
-    if response.status_code != 200:
-        raise Exception(f"更新远程术语表失败: {response.status_code}")
+    try:
+        # 验证输入数据格式
+        if not isinstance(terms, list):
+            raise ValueError("术语表格式错误：期望列表类型")
+            
+        response = requests.post(url, json=terms, headers=headers)
+        response.raise_for_status()
+        
+        # 验证响应数据
+        result = response.json()
+        if not isinstance(result, dict) or 'message' not in result:
+            raise ValueError("API响应格式错误")
+            
+        return result
+        
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"API请求失败: {str(e)}")
+    except ValueError as e:
+        raise Exception(f"数据格式错误: {str(e)}")
 
 def merge_terms(local_terms, remote_terms):
     """合并本地和远程术语表"""

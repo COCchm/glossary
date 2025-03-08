@@ -1,6 +1,7 @@
 import os
 import requests
 import json
+import time
 from pathlib import Path
 
 # Paratranz API配置
@@ -28,33 +29,64 @@ def save_local_terms(terms):
 def get_remote_terms():
     """获取远程术语表"""
     url = f"{PARATRANZ_API}/projects/{PROJECT_ID}/terms"
-    headers = {"Authorization": API_KEY}
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        
-        # 解析响应数据
-        data = response.json()
-        if not isinstance(data, dict):
-            raise ValueError("远程术语表格式错误：期望字典类型")
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+    }
+    
+    all_terms = []
+    page = 1
+    per_page = 100
+    
+    while True:
+        try:
+            # 添加分页参数
+            params = {
+                "page": page,
+                "per_page": per_page
+            }
             
-        # 验证分页数据结构
-        if 'results' not in data or not isinstance(data['results'], list):
-            raise ValueError("远程术语表格式错误：缺少results字段或格式不正确")
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
             
-        # 验证每个术语项格式
-        for term in data['results']:
-            if not isinstance(term, dict):
-                raise ValueError("术语项格式错误：期望字典类型")
-            if 'id' not in term:  # 根据API文档，术语ID字段是'id'而不是'term_id'
-                raise ValueError("术语项缺少id字段")
+            # 解析响应数据
+            data = response.json()
+            if not isinstance(data, dict):
+                raise ValueError("远程术语表格式错误：期望字典类型")
                 
-        return data['results']
-        
-    except requests.exceptions.RequestException as e:
-        raise Exception(f"API请求失败: {str(e)}")
-    except ValueError as e:
-        raise Exception(f"数据格式错误: {str(e)}")
+            # 验证分页数据结构
+            if 'results' not in data or not isinstance(data['results'], list):
+                raise ValueError("远程术语表格式错误：缺少results字段或格式不正确")
+                
+            # 验证每个术语项格式
+            for term in data['results']:
+                if not isinstance(term, dict):
+                    raise ValueError("术语项格式错误：期望字典类型")
+                if 'id' not in term:
+                    raise ValueError("术语项缺少id字段")
+                    
+            all_terms.extend(data['results'])
+            
+            # 检查是否还有更多数据
+            if len(data['results']) < per_page:
+                break
+                
+            page += 1
+            time.sleep(1)  # 添加延迟避免触发频率限制
+            
+        except requests.exceptions.RequestException as e:
+            if response.status_code == 500:
+                # 记录详细错误信息
+                error_detail = {
+                    "url": url,
+                    "status_code": response.status_code,
+                    "response": response.text
+                }
+                raise Exception(f"API请求失败: {str(e)}\n详细信息: {json.dumps(error_detail, indent=2)}")
+            raise Exception(f"API请求失败: {str(e)}")
+            
+    return all_terms
 
 def update_remote_terms(terms):
     """更新远程术语表"""

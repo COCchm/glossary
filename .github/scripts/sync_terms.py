@@ -15,14 +15,30 @@ RETRY_DELAY = 5  # 重试延迟时间（秒）
 REQUEST_TIMEOUT = 30  # 请求超时时间（秒）
 
 # 文件路径
-TERMS_DIR = Path(__file__).parent.parent.parent
+TERMS_DIR = Path(__file__).resolve().parent.parent.parent
 TERMS_FILE = TERMS_DIR / "terms-13798.json"
-LOG_FILE = TERMS_DIR / ".github/logs/sync_terms.log"
+LOG_FILE = TERMS_DIR / "logs/sync_terms.log"  # 简化日志路径
 
 def setup_logging():
     """配置日志记录"""
-    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    sys.stdout = sys.stderr = open(LOG_FILE, "a", encoding="utf-8")
+    try:
+        # 确保日志目录存在
+        if not LOG_FILE.parent.exists():
+            LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        
+        # 在Windows上需要显式设置文件模式
+        sys.stdout = sys.stderr = open(LOG_FILE, "a", encoding="utf-8", mode="w")
+        
+        # 打印环境信息用于调试
+        print("=" * 40)
+        print(f"Python版本: {sys.version}")
+        print(f"操作系统: {os.name}")
+        print(f"当前工作目录: {os.getcwd()}")
+        print(f"环境变量: PARATRANZ_API_KEY={bool(API_KEY)}, PARATRANZ_PROJECT_ID={PROJECT_ID}")
+        print("=" * 40)
+    except Exception as e:
+        # 如果日志文件无法创建，回退到标准输出
+        print(f"无法创建日志文件: {str(e)}", file=sys.__stderr__)
 
 def log_error(message: str, error: Exception = None):
     """记录错误日志"""
@@ -35,11 +51,24 @@ def log_error(message: str, error: Exception = None):
 
 def make_request(method: str, url: str, **kwargs) -> requests.Response:
     """带重试机制的请求函数"""
+    if not API_KEY:
+        raise ValueError("缺少API_KEY环境变量")
+        
     headers = {
         "Authorization": f"Bearer {API_KEY}",
         "Accept": "application/json",
         "Content-Type": "application/json"
     }
+    
+    # 在Windows上需要显式设置代理
+    proxies = {}
+    if os.name == 'nt':
+        http_proxy = os.getenv('HTTP_PROXY') or os.getenv('http_proxy')
+        https_proxy = os.getenv('HTTPS_PROXY') or os.getenv('https_proxy')
+        if http_proxy:
+            proxies['http'] = http_proxy
+        if https_proxy:
+            proxies['https'] = https_proxy
     
     for attempt in range(MAX_RETRIES):
         try:
@@ -163,15 +192,47 @@ def sync_terms() -> bool:
     try:
         setup_logging()
         
-        local_terms = load_local_terms()
-        remote_terms = get_remote_terms()
-        merged_terms = merge_terms(local_terms, remote_terms)
+        # 检查必要环境变量
+        if not API_KEY:
+            raise ValueError("缺少PARATRANZ_API_KEY环境变量")
+        if not PROJECT_ID:
+            raise ValueError("缺少PARATRANZ_PROJECT_ID环境变量")
+            
+        print("开始同步术语表...")
         
+        # 打印文件路径用于调试
+        print(f"术语文件路径: {TERMS_FILE}")
+        print(f"日志文件路径: {LOG_FILE}")
+        
+        # 加载本地术语表
+        local_terms = load_local_terms()
+        print(f"加载了 {len(local_terms)} 条本地术语")
+        
+        # 获取远程术语表
+        remote_terms = get_remote_terms()
+        print(f"获取了 {len(remote_terms)} 条远程术语")
+        
+        # 合并术语表
+        merged_terms = merge_terms(local_terms, remote_terms)
+        print(f"合并后共有 {len(merged_terms)} 条术语")
+        
+        # 保存本地术语表
         save_local_terms(merged_terms)
-        update_remote_terms(merged_terms)
+        print("本地术语表保存成功")
+        
+        # 更新远程术语表
+        update_result = update_remote_terms(merged_terms)
+        print(f"远程术语表更新结果: {update_result}")
+        
         return True
     except Exception as e:
+        # 记录详细错误信息
         log_error("术语表同步失败", e)
+        print(f"同步失败: {str(e)}", file=sys.__stderr__)
+        print(f"错误类型: {type(e).__name__}", file=sys.__stderr__)
+        print(f"堆栈跟踪:", file=sys.__stderr__)
+        import traceback
+        traceback.print_exc(file=sys.__stderr__)
         return False
 
 if __name__ == "__main__":
